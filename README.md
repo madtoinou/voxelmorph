@@ -1,6 +1,6 @@
 # voxelmorph: Learning-Based Image Registration  
 
-**voxelmorph** is a general purpose library for learning-based tools for alignment/registration, and more generally modelling with deformations.
+Adapted for Professor Sahand LPBS Lab at EPFL by Ines, Loic and Antoine
 
 # Tutorial
 
@@ -71,39 +71,6 @@ In the original MICCAI code, the parameters were applied after the scaling of th
 
 - For the MICCAI2018 version, we integrate the velocity field using `voxelmorph.layers.VecInt`. By default we integrate using scaling and squaring, which we found efficient.
 
-
-# VoxelMorph Papers
-
-If you use voxelmorph or some part of the code, please cite (see [bibtex](citations.bib)):
-
-  * For the atlas formation model:  
-  
-    **Learning Conditional Deformable Templates with Convolutional Networks**  
-  [Adrian V. Dalca](http://adalca.mit.edu), [Marianne Rakic](https://mariannerakic.github.io/), [John Guttag](https://people.csail.mit.edu/guttag/), [Mert R. Sabuncu](http://sabuncu.engineering.cornell.edu/)  
-  NeurIPS 2019. [eprint arXiv:1908.02738](https://arxiv.org/abs/1908.02738)
-
-  * For the diffeomorphic or probabilistic model:
-
-    **Unsupervised Learning of Probabilistic Diffeomorphic Registration for Images and Surfaces**  
-[Adrian V. Dalca](http://adalca.mit.edu), [Guha Balakrishnan](http://people.csail.mit.edu/balakg/), [John Guttag](https://people.csail.mit.edu/guttag/), [Mert R. Sabuncu](http://sabuncu.engineering.cornell.edu/)  
-MedIA: Medial Image Analysis. 2019. [eprint arXiv:1903.03545](https://arxiv.org/abs/1903.03545) 
-
-    **Unsupervised Learning for Fast Probabilistic Diffeomorphic Registration**  
-[Adrian V. Dalca](http://adalca.mit.edu), [Guha Balakrishnan](http://people.csail.mit.edu/balakg/), [John Guttag](https://people.csail.mit.edu/guttag/), [Mert R. Sabuncu](http://sabuncu.engineering.cornell.edu/)  
-MICCAI 2018. [eprint arXiv:1805.04605](https://arxiv.org/abs/1805.04605)
-
-  * For the original CNN model, MSE, CC, or segmentation-based losses:
-
-    **VoxelMorph: A Learning Framework for Deformable Medical Image Registration**  
-[Guha Balakrishnan](http://people.csail.mit.edu/balakg/), [Amy Zhao](http://people.csail.mit.edu/xamyzhao/), [Mert R. Sabuncu](http://sabuncu.engineering.cornell.edu/), [John Guttag](https://people.csail.mit.edu/guttag/), [Adrian V. Dalca](http://adalca.mit.edu)  
-IEEE TMI: Transactions on Medical Imaging. 2019. 
-[eprint arXiv:1809.05231](https://arxiv.org/abs/1809.05231)
-
-    **An Unsupervised Learning Model for Deformable Medical Image Registration**  
-[Guha Balakrishnan](http://people.csail.mit.edu/balakg/), [Amy Zhao](http://people.csail.mit.edu/xamyzhao/), [Mert R. Sabuncu](http://sabuncu.engineering.cornell.edu/), [John Guttag](https://people.csail.mit.edu/guttag/), [Adrian V. Dalca](http://adalca.mit.edu)  
-CVPR 2018. [eprint arXiv:1802.02604](https://arxiv.org/abs/1802.02604)
-
-
 # Notes:
 - **keywords**: machine learning, convolutional neural networks, alignment, mapping, registration  
 - The `master` branch is still in testing as we roll out a major refactoring of the library.     
@@ -129,7 +96,3 @@ We've also provided an unconditional atlas in `data/generated_uncond_atlas.npz.n
 Models in h5 format weights are provided for [unconditional atlas here](http://people.csail.mit.edu/adalca/voxelmorph/atlas_creation_uncond_NCC_1500.h5), and [conditional atlas here](http://people.csail.mit.edu/adalca/voxelmorph/atlas_creation_cond_NCC_1022.h5).
 
 **Explore the atlases [interactively here](http://voxelmorph.mit.edu/atlas_creation/)** with tipiX!
-
-
-# Contact:
-For any problems or questions please [open an issue](https://github.com/voxelmorph/voxelmorph/issues/new?labels=voxelmorph) in github.  
