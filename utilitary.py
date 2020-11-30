@@ -104,6 +104,8 @@ def find_contour(images, mod=1.1, clamp_val=300, blur=5):
             all_ret : contains all the threshold used for all the images.
                            Has the same shape as images.shape[0]
     """
+    if len(images.shape) == 2:
+        images = images[np.newaxis,...]
     all_contours = np.empty(images.shape)
     all_ret = np.empty(images.shape[0])
 
