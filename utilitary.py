@@ -1,3 +1,4 @@
+
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
@@ -78,10 +79,19 @@ def to_MIP(data, list_keys, axis):
     nb_vol = len(list_keys)
     x,y,z = data.get('0')['frame'][0].shape
 
-    #
-    MIP = np.empty((nb_vol, x, y, 3))
-    MIP_avg = np.empty((nb_vol, x, y))
-    MIP_3 = np.zeros((x, y))
+    if axis == 2:
+        MIP = np.empty((nb_vol, x, y, 3))
+        MIP_avg = np.empty((nb_vol, x, y))
+        MIP_3 = np.zeros((x, y))
+    elif axis == 1:
+        MIP = np.empty((nb_vol, x, z, 3))
+        MIP_avg = np.empty((nb_vol, x, z))
+        MIP_3 = np.zeros((x, z))
+    else :
+        MIP = np.empty((nb_vol, y, z, 3))
+        MIP_avg = np.empty((nb_vol, y, z))
+        MIP_3 = np.zeros((y, z))
+
 
     for i,key in enumerate(list_keys):
         MIP_1 = np.max(data.get(key)["frame"][0], axis = axis)
@@ -91,13 +101,16 @@ def to_MIP(data, list_keys, axis):
 
     return MIP, MIP_avg
 
-def find_contour(images):
+def find_contour(images, mod=1.1, clamp_val=300, blur=5):
 
     """ Find the contour of all image in images
         Arguments:
             images : array of all images of interest. The range of the intensity
                      values of the images should be divided by 255 before passing
                      it in argument
+            mod : modulation factor against the optimal threshold found
+            clamp_val : clamp the intensity above clamp_val to clamp_val
+            blur : size of the kernel for the median blur
         Return:
             all_contours : contains all the contours of all the images.
                            Has the same shape as images
@@ -117,21 +130,21 @@ def find_contour(images):
             im2 = im
         # Clamp the values of im2 from [0, max_val], because some intensity
         # values are > 255
-        max_val = 300
+        max_val = clamp_val
         im2[im2 > max_val] = max_val
         # Change the type in uint8 for drawContours
         im2 = (im2/max_val*255).astype(np.uint8)
 
         # Blur the image to remove noise
         # You can also use : cv2.GaussianBlur(im,(3,3),0)
-        im2 = cv2.medianBlur(im2,5)
+        im2 = cv2.medianBlur(im2,blur)
 
         # Perform a binary threshold + OTSU
         all_ret[i], th1 = cv2.threshold(im2, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
         # Use a threshold = optimal threshold * 1.1 = all_ret[i]*1.1
         # You can also use cv2.adaptiveThreshold(im2,im2.max(),cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         # cv2.THRESH_BINARY,3,2)
-        _, th1 = cv2.threshold(im2, all_ret[i]*1.1, 255, cv2.THRESH_BINARY)
+        _, th1 = cv2.threshold(im2, all_ret[i]*mod, 255, cv2.THRESH_BINARY)
 
         # Find contours
         contours, hierarchy = cv2.findContours(th1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
