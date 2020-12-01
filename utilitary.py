@@ -185,7 +185,7 @@ def red_MIP(data, list_keys, axis):
             
     return r_MIP
 
-def crop_ctr_mass(img, size=150):
+def crop_ctr_mass(img, size=128):
     img_ctr, _ = find_contour(img,0.8,blur=5)
     img_ctr = img_ctr.reshape(img.shape)
     (x, y) = ndimage.center_of_mass(img_ctr)
