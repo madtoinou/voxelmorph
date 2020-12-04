@@ -299,7 +299,7 @@ def rot_img(img, img_ctr, list_ctr):
     dy = ctr_mass_list[0][1] - ctr_mass_list[1][1]
     angle = np.degrees(np.arctan(dx/dy))
 
-    return ndimage.rotate(img,angle)
+    return ndimage.rotate(img,angle), ndimage.rotate(img_ctr,angle)
 
 
 ### Voxelmorph set generation
