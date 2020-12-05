@@ -1,14 +1,315 @@
-
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import ndimage
+
+### Data import
+
+def remove_empty_key(hf, keys):
+    """ Remove the empty keys in the list keys
+        Arguments :
+            keys : list of all the keys
+        Return :
+            use_key : all the keys that are not empty
+    """
+    use_key = []
+    for key in keys:
+        if len(hf.get(key))!= 0:
+            use_key.append(key)
+    return use_key
+
+### Preprocessing
+
+# Edge detection
+
+def find_contour(images, mod=1.1, clamp_val=300, blur=5):
+
+    """ Find the contour of all image in images
+        Arguments:
+            images : array of all images of interest. The range of the intensity
+                     values of the images should be divided by 255 before passing
+                     it in argument
+        Return:
+            all_contours : contains all the contours of all the images.
+                           Has the same shape as images
+            all_ret : contains all the threshold used for all the images.
+                           Has the same shape as images.shape[0]
+    """
+    #single image
+    if len(images.shape) == 2:
+        images = images[np.newaxis,...]
+
+    #pre-allocation
+    #thresholds?
+    all_ret = np.empty(images.shape[0])
+    #contours as image
+    contours_img = np.empty(images.shape)
+    #contours as list
+    contours_list = []
+
+    for i, img in enumerate(images):
+
+        # Get the original values of the image back
+        if np.max(img) < 255 :
+            img_c = img * 255
+        # The image is already in its original form
+        else :
+            img_c = img
+
+        # Clamp the values of img from [0, max_val]
+        img_c[img_c > clamp_val] = clamp_val
+
+        # Change the type in uint8 for drawContours
+        img_c = (img_c/clamp_val*255).astype(np.uint8)
+
+        # Blur the image to remove noise
+        # alternative : cv2.GaussianBlur(im,(3,3),0)
+        img_c = cv2.medianBlur(img_c,blur)
+
+        # Perform a binary threshold + OTSU
+        all_ret[i], th1 = cv2.threshold(img_c, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+        # Use a threshold = optimal threshold * 1.1 = all_ret[i]*1.1
+        # alternative : cv2.adaptiveThreshold(im2,im2.max(),cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        # cv2.THRESH_BINARY,3,2)
+        _, th1 = cv2.threshold(img_c, all_ret[i]*mod, 255, cv2.THRESH_BINARY)
+
+        # Find contours (return as a list)
+        list_contour, hierarchy = cv2.findContours(th1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Convert contours to image
+        img_contour = cv2.drawContours(np.zeros(img_c.shape), list_contour, -1, (255,0,0), 3)
+
+        # contour is in {0,1} <=> normalization
+        img_contour /= 255
+
+        contours_img[i,...] = img_contour
+        contours_list.append(list_contour)
+
+    return contours_img, all_ret, contours_list
+
+# Mean Intensity Projection
+
+def single_MIP(data, list_keys, axis, channel=0):
+    """ Mean intensity projection (MIP) to axis
+        Arguments :
+            data : h5 data
+            list_keys : list of keys contained in data
+            axis : axis for the projection
+            channel : channel to project, by default red
+        Returns :
+            MIP : np.array of dimensions (nb_vol, x, y, 3) of
+                  the MIP.
+                  The last dimension contains the RGB values
+            MIP_avg : np.array of dimensions (nb_vol, x, y) of
+                      the MIP.
+                      The last dimension contains the mean RGB values
+    """
+    nb_vol = len(list_keys)
+    x,y,z = data.get('0')['frame'][channel].shape
+
+    #
+    if axis == 2:
+        MIP = np.empty((nb_vol, x, y))
+    elif axis == 1:
+        MIP = np.empty((nb_vol, x, z))
+    else:
+        MIP = np.empty((nb_vol, y, z))
+
+    for i,key in enumerate(list_keys):
+        MIP[i] = np.max(data.get(key)["frame"][channel], axis = axis)
+
+    return MIP
+
+def MIP_GR(data, list_keys, axis):
+    """ Mean intensity projection (MIP) of red and green channels separately to axis
+        Arguments :
+            data : h5 data
+            list_keys : list of keys contained in data
+            axis : axis for the projection
+        Returns :
+            rMIP : np.array of dimensions (nb_vol, x, y, 3) of
+                  the MIP of the red channel
+            gMIP : np.array of dimensions (nb_vol, x, y, 3) of
+                  the MIP of the green channel
+    """
+    # project red channel along the axis
+    r_MIP = single_MIP(data, list_keys, axis, 0)
+
+    # project green channel along the axis
+    g_MIP = single_MIP(data, list_keys, axis, 1)
+
+    return r_MIP, g_MIP
+
+def np_MIP(array, list_keys, axis):
+    """ Mean intensity projection (MIP) to axis
+        Arguments :
+            data : numpy array
+            list_keys : list of keys contained in data
+            axis : axis for the projection
+        Returns :
+            MIP : np.array of dimensions (nb_vol, x, y, 3) of
+                  the MIP.
+    """
+    nb_vol, x,y,z = array.shape
+
+    if axis == 2:
+        MIP = np.empty((nb_vol, x, y))
+    elif axis == 1:
+        MIP = np.empty((nb_vol, x, z))
+    else:
+        MIP = np.empty((nb_vol, y, z))
+
+    for i,key in enumerate(list_keys):
+        MIP[i] = np.max(array[i], axis = axis)
+
+    return MIP
+
+# Cropping
+
+def crop_ctr_mass(img, img_ctr, size=128):
+    """ Crop image around its contours center of mass
+        Arguments :
+            img : numpy array
+            img_ctr : numpy array version of img contours
+            size : distance to crop for each direction
+        Returns :
+            _ : np.array of dimensions (2*size,2*size)
+        Use minimum mode to pad if the cropping exceed the
+        initial image dimensions
+    """
+    #compute the center of mass of the binary contours
+    (x, y) = ndimage.center_of_mass(img_ctr)
+    #convert to int
+    (x, y) = (int(x),int(y))
+
+    #the cropping exceed the image dimensions
+    if x-size < 0 or x+size > img.shape[0] or \
+        y-size < 0 or y+size > img.shape[1]:
+        #padding
+        img_pad=np.pad(img, size, mode='minimum')
+        return img_pad[x:x+2*size,y:y+2*size]
+    #the cropping in within the image dimensions
+    else:
+        return img[x-size:x+size,y-size:y+size]
+
+def crop_ctr_mass_GR(img_r, img_g, img_r_ctr, size=128):
+    """ Crop image around its contours center of mass
+        Arguments :
+            img_r : numpy array, red channel
+            img_g : numpy array, green channel
+            img_ctr : numpy array version of img_r contours
+            size : distance to crop for each direction
+        Returns :
+            _ : np.array of dimensions (2*size,2*size)
+        Use minimum mode to pad if the cropping exceed the
+        initial image dimensions
+    """
+    cropped_red = np.empty((len(img_r), 2*size, 2*size))
+    cropped_green = np.empty((len(img_g), 2*size, 2*size))
+    cropped_contours = np.empty((len(img_r), 2*size, 2*size))
+
+    #iterate over images
+    for i, im in enumerate(img_r):
+        #obtian contours
+        img_ctr = img_r_ctr[i]
+        #compute contours center of mass
+        (x, y) = ndimage.center_of_mass(img_ctr)
+        (x, y) = (int(x), int(y))
+
+        #cropping exceed image border
+        if x-size < 0 or x+size > im.shape[0] or \
+            y-size < 0 or y+size > im.shape[1]:
+
+            img_pad = np.pad(im, size, mode='minimum')
+            img_pad2 = np.pad(img_g[i], size, mode='minimum')
+            img_pad3 = np.pad(img_r_ctr[i], size, mode='minimum')
+
+            cropped_red[i] = img_pad[x:x+2*size,y:y+2*size]
+            cropped_green[i] = img_pad2[x:x+2*size,y:y+2*size]
+            cropped_contours[i] = img_pad3[x:x+2*size,y:y+2*size]
+        else:
+            cropped_red[i] = im[x-size:x+size,y-size:y+size]
+            cropped_green[i] = img_g[i, x-size:x+size,y-size:y+size]
+            cropped_contours[i] = img_ctr_all[i, x-size:x+size,y-size:y+size]
+
+    return cropped_red, cropped_green, cropped_contours
+
+# Segmentation
+def rectangle_neurons(img, contours_list, nb_contour=2):
+    """ Return the coordinates of a bounding rectangle for each
+        contour (in descending area order)
+        Arguments :
+            img : numpy array
+            contours_list : img contours in list format
+            nb_contour : number of rectables returned
+        Returns :
+            rect_neurons : x, y, h, for each rectangle, (x,y) is
+            the position of the top left corner
+    """
+    #compute area of each contour
+    area_contours = [[cv2.contourArea(i), i] for i in contours_list]
+
+    # sort contour by area
+    area_contours.sort(key=lambda x : x[0], reverse=True)
+
+    #list of rectangle position bounding each contour
+    rect_neurons = []
+
+    # use the biggest two contours
+    for contour in area_contours[:nb_contour]:
+        (x, y, w, h) = cv2.boundingRect(contour[1])
+
+        #increase the boundaries
+        h += 10
+        w += 10
+        x -= 5
+        y -= 5
+        rect_neurons.append([x,y,w,h])
+
+    return rect_neurons
+
+# Rotation
+def rot_img(img, img_ctr, list_ctr):
+    """ Rotate the image so that the line passing throught the 2
+    biggest contour center of mass is horitonzal
+        Arguments :
+            img : numpy array
+            img_ctr : img contours in img format
+            list_ctr : img contours in list format
+        Returns :
+            _ : rotated image
+    """
+    #bound the two biggest contour with a rectangle
+    rect_neurons = rectangle_neurons(img, list_ctr,2)
+    ctr_mass_list = []
+
+    #iterate on the bounding rectangle
+    for i in rect_neurons:
+        y, x, w, h = i
+        #padding to conserve the coordinates -> might not be necessary,
+        #could probably work with just img_ctr[x:x+w,y:y+h]
+        tmp_img = np.zeros(img.shape)
+        tmp_img[x:x+w,y:y+h] = img_ctr[x:x+w,y:y+h]
+        (x, y) = ndimage.center_of_mass(tmp_img)
+        ctr_mass_list.append((int(x),int(y)))
+
+    #compute the rotation angle
+    dx = ctr_mass_list[0][0] - ctr_mass_list[1][0]
+    dy = ctr_mass_list[0][1] - ctr_mass_list[1][1]
+    angle = np.degrees(np.arctan(dx/dy))
+
+    return ndimage.rotate(img,angle), ndimage.rotate(img_ctr,angle)
+
+
+### Voxelmorph set generation
 
 def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
     """
     Generator that takes in data of size [N, H, W], and yields data for
     our custom vxm model. Note that we need to provide numpy data for each
     input, and each output.
+
     inputs:  moving [bs, H, W, 1], fixed image [bs, H, W, 1]
     outputs: moved image [bs, H, W, 1], zero-gradient [bs, H, W, 2]
     """
@@ -41,6 +342,8 @@ def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
 
         yield (inputs, outputs)
 
+### Helper
+
 def plot_history(hist, loss_name='loss', save_name = 'title'):
     # Simple function to plot training history.
     plt.figure()
@@ -51,244 +354,3 @@ def plot_history(hist, loss_name='loss', save_name = 'title'):
     title = 'Hist' + save_name + ".pdf"
     plt.savefig(title)
     plt.show()
-
-def remove_empty_key(keys, hf):
-    """ Remove the empty keys in the list keys
-        Arguments :
-            keys : list of all the keys
-        Return :
-            use_key : all the keys that are not empty
-    """
-    use_key = []
-    for key in keys:
-        if len(hf.get(key))!= 0:
-            use_key.append(key)
-    return use_key
-
-def to_MIP(data, list_keys, axis):
-    """ Mean intensity projection (MIP) to axis
-        Arguments :
-            data : h5 data
-            list_keys : list of keys contained in data
-            axis : axis for the projection
-        Returns :
-            MIP : np.array of dimensions (nb_vol, x, y, 3) of
-                  the MIP.
-                  The last dimension contains the RGB values
-            MIP_avg : np.array of dimensions (nb_vol, x, y) of
-                      the MIP.
-                      The last dimension contains the mean RGB values
-    """
-    nb_vol = len(list_keys)
-    x,y,z = data.get('0')['frame'][0].shape
-
-    if axis == 2:
-        MIP = np.empty((nb_vol, x, y, 3))
-        MIP_avg = np.empty((nb_vol, x, y))
-        MIP_3 = np.zeros((x, y))
-    elif axis == 1:
-        MIP = np.empty((nb_vol, x, z, 3))
-        MIP_avg = np.empty((nb_vol, x, z))
-        MIP_3 = np.zeros((x, z))
-    else :
-        MIP = np.empty((nb_vol, y, z, 3))
-        MIP_avg = np.empty((nb_vol, y, z))
-        MIP_3 = np.zeros((y, z))
-
-
-    for i,key in enumerate(list_keys):
-        MIP_1 = np.max(data.get(key)["frame"][0], axis = axis)
-        MIP_2 = np.max(data.get(key)["frame"][1], axis = axis)
-        MIP[i, ...] = np.dstack((MIP_1/255, MIP_2/255, MIP_3/255))
-        MIP_avg[i, ...] = (MIP_1/255 + MIP_2/255 + MIP_3/255)/3
-
-    return MIP, MIP_avg
-
-def find_contour(images, mod=1.1, clamp_val=300, blur=5):
-
-    """ Find the contour of all image in images
-        Arguments:
-            images : array of all images of interest. The range of the intensity
-                     values of the images should be divided by 255 before passing
-                     it in argument
-            mod : modulation factor against the optimal threshold found
-            clamp_val : clamp the intensity above clamp_val to clamp_val
-            blur : size of the kernel for the median blur
-        Return:
-            all_contours : contains all the contours of all the images.
-                           Has the same shape as images
-            all_ret : contains all the threshold used for all the images.
-                           Has the same shape as images.shape[0]
-    """
-    # If only 1 image is given
-    if len(images.shape) == 2:
-        images = images[np.newaxis,...]
-
-    all_contours = np.empty(images.shape)
-    all_ret = np.empty(images.shape[0])
-
-    for i, im in enumerate(images):
-
-        # Get the original values of the image back
-        if np.max(im) < 255 :
-            im2 = im * 255
-        # The image is already in its original form
-        else :
-            im2 = im
-        # Clamp the values of im2 from [0, max_val], because some intensity
-        # values are > 255
-        max_val = clamp_val
-        im2[im2 > max_val] = max_val
-        # Change the type in uint8 for drawContours
-        im2 = (im2/max_val*255).astype(np.uint8)
-
-        # Blur the image to remove noise
-        # You can also use : cv2.GaussianBlur(im,(3,3),0)
-        im2 = cv2.medianBlur(im2,blur)
-
-        # Perform a binary threshold + OTSU
-        all_ret[i], th1 = cv2.threshold(im2, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-        # Use a threshold = optimal threshold * 1.1 = all_ret[i]*1.1
-        # You can also use cv2.adaptiveThreshold(im2,im2.max(),cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        # cv2.THRESH_BINARY,3,2)
-        _, th1 = cv2.threshold(im2, all_ret[i]*mod, 255, cv2.THRESH_BINARY)
-
-        # Find contours
-        contours, hierarchy = cv2.findContours(th1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        contour = cv2.drawContours(np.zeros(im.shape), contours, -1, (255,0,0), 3)
-        # contour is in {0,1}
-        contour /= 255
-        all_contours[i,...] = contour
-
-    return all_contours, all_ret
-
-def red_MIP(data, list_keys, axis):
-    """ Mean intensity projection (MIP) to axis
-        Arguments :
-            data : h5 data
-            list_keys : list of keys contained in data
-            axis : axis for the projection
-        Returns :
-            MIP : np.array of dimensions (nb_vol, x, y, 3) of
-                  the MIP.
-                  The last dimension contains the RGB values
-            MIP_avg : np.array of dimensions (nb_vol, x, y) of
-                      the MIP.
-                      The last dimension contains the mean RGB values
-    """
-    nb_vol = len(list_keys)
-    x,y,z = data.get('0')['frame'][0].shape
-
-    #
-    if axis == 2:
-        r_MIP = np.empty((nb_vol, x, y))
-    elif axis == 1:
-        r_MIP = np.empty((nb_vol, x, z))
-    else:
-        r_MIP = np.empty((nb_vol, y, z))
-
-    for i,key in enumerate(list_keys):
-        r_MIP[i] = np.max(data.get(key)["frame"][0], axis = axis)
-
-    return r_MIP
-
-def MIP_GR(data, list_keys, axis):
-    """ Mean intensity projection (MIP) of the red and green channels to axis
-        Arguments :
-            data : h5 data
-            list_keys : list of keys contained in data
-            axis : axis for the projection
-        Returns :
-            rMIP : np.array of dimensions (nb_vol, x, y, 3) of
-                  the MIP of the red channel
-            gMIP : np.array of dimensions (nb_vol, x, y, 3) of
-                  the MIP of the green channel
-    """
-    nb_vol = len(list_keys)
-    x,y,z = data.get('0')['frame'][0].shape
-
-    #
-    if axis == 2:
-        r_MIP = np.empty((nb_vol, x, y))
-        g_MIP = np.empty((nb_vol, x, y))
-    elif axis == 1:
-        r_MIP = np.empty((nb_vol, x, z))
-        g_MIP = np.empty((nb_vol, x, y))
-    else:
-        r_MIP = np.empty((nb_vol, y, z))
-        g_MIP = np.empty((nb_vol, x, y))
-
-    for i,key in enumerate(list_keys):
-        r_MIP[i] = np.max(data.get(key)["frame"][0], axis = axis)
-        g_MIP[i] = np.max(data.get(key)["frame"][1], axis = axis)
-
-
-    return r_MIP, g_MIP
-
-def np_MIP(data, list_keys, axis):
-    """ Mean intensity projection (MIP) to axis
-        Arguments :
-            data : numpy array
-            list_keys : list of keys contained in data
-            axis : axis for the projection
-        Returns :
-            MIP : np.array of dimensions (nb_vol, x, y, 3) of
-                  the MIP.
-    """
-
-    nb_vol, x,y,z = data.shape
-
-
-    if axis == 2:
-        MIP = np.empty((nb_vol, x, y))
-    elif axis == 1:
-        MIP = np.empty((nb_vol, x, z))
-    else:
-        MIP = np.empty((nb_vol, y, z))
-
-    for i,key in enumerate(list_keys):
-        MIP[i] = np.max(data[i], axis = axis)
-
-    return MIP
-
-def crop_ctr_mass(img, size=128):
-
-    img_ctr, _ = find_contour(img,0.8,blur=5)
-    img_ctr = img_ctr.reshape(img.shape)
-    (x, y) = ndimage.center_of_mass(img_ctr)
-    (x,y) = (int(x),int(y))
-    if x-size < 0 or x+size > img.shape[0] or \
-        y-size < 0 or y+size > img.shape[1]:
-        img_pad=np.pad(img,size,mode='minimum')
-        return img_pad[x:x+2*size,y:y+2*size]
-    else:
-        return img[x-size:x+size,y-size:y+size]
-
-def crop_ctr_mass_GR(img_r, img_g, size=128):
-
-    img_ctr_all, _ = find_contour(img_r, 0.8, blur=5)
-
-    red = np.empty((len(img_r), 2*size, 2*size))
-    green = np.empty((len(img_g), 2*size, 2*size))
-    contours = np.empty((len(img_g), 2*size, 2*size))
-
-    for i, im in enumerate(img_r):
-        img_ctr = img_ctr_all[i]
-        (x, y) = ndimage.center_of_mass(img_ctr)
-        (x, y) = (int(x), int(y))
-        if x-size < 0 or x+size > im.shape[0] or \
-            y-size < 0 or y+size > im.shape[1]:
-
-            img_pad = np.pad(im, size, mode='minimum')
-            img_pad2 = np.pad(img_g[i], size, mode='minimum')
-            img_pad3 = np.pad(img_ctr_all[i], size, mode='minimum')
-
-            red[i] = img_pad[x:x+2*size,y:y+2*size]
-            green[i] = img_pad2[x:x+2*size,y:y+2*size]
-            contours[i] = img_pad3[x:x+2*size,y:y+2*size]
-        else:
-            red[i] = im[x-size:x+size,y-size:y+size]
-            green[i] = img_g[i, x-size:x+size,y-size:y+size]
-            contours[i] = img_ctr_all[i, x-size:x+size,y-size:y+size]
-
-    return red, green, contours
