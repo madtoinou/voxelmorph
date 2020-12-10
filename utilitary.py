@@ -22,25 +22,26 @@ def remove_empty_key(hf, keys):
 
 # Edge detection
 
-def find_contour(images, mod=1.1, clamp_val=300, blur=5):
+def find_contour(images, mod=1.1, blur=5):
 
     """ Find the contour of all image in images
         Arguments:
-            images : array of all images of interest. The range of the intensity
-                     values of the images should be divided by 255 before passing
-                     it in argument
+            images : array of all images of interest.
+            mod : modulation of the OTSU threshold found
+            blur : medianBlur applied before searching the threshold
         Return:
             all_contours : contains all the contours of all the images.
                            Has the same shape as images
             all_ret : contains all the threshold used for all the images.
                            Has the same shape as images.shape[0]
+            contours_list : list of the contours
     """
     #single image
     if len(images.shape) == 2:
         images = images[np.newaxis,...]
 
     #pre-allocation
-    #thresholds?
+    #thresholds
     all_ret = np.empty(images.shape[0])
     #contours as image
     contours_img = np.empty(images.shape)
@@ -49,39 +50,27 @@ def find_contour(images, mod=1.1, clamp_val=300, blur=5):
 
     for i, img in enumerate(images):
 
-        # Get the original values of the image back
-        if np.max(img) < 255 :
-            img_c = img * 255
-        # The image is already in its original form
-        else :
-            img_c = img
-
-        # Clamp the values of img from [0, max_val]
-        img_c[img_c > clamp_val] = clamp_val
 
         # Change the type in uint8 for drawContours
-        img_c = (img_c/clamp_val*255).astype(np.uint8)
+        img_c = (img*1000).astype(np.uint8)
 
         # Blur the image to remove noise
         # alternative : cv2.GaussianBlur(im,(3,3),0)
         img_c = cv2.medianBlur(img_c,blur)
 
         # Perform a binary threshold + OTSU
-        all_ret[i], th1 = cv2.threshold(img_c, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        all_ret[i], th1 = cv2.threshold(img_c, 0, 1, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 
         # Use a threshold = optimal threshold * 1.1 = all_ret[i]*1.1
         # alternative : cv2.adaptiveThreshold(im2,im2.max(),cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
         # cv2.THRESH_BINARY,3,2)
-        _, th1 = cv2.threshold(img_c, all_ret[i]*mod, 255, cv2.THRESH_BINARY)
+        list_contour, th1 = cv2.threshold(img_c, all_ret[i]*mod, 1, cv2.THRESH_BINARY)
 
         # Find contours (return as a list)
         list_contour, hierarchy = cv2.findContours(th1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Convert contours to image
-        img_contour = cv2.drawContours(np.zeros(img_c.shape), list_contour, -1, (255,0,0), 3)
-
-        # contour is in {0,1} <=> normalization
-        img_contour /= 255
+        img_contour = cv2.drawContours(np.zeros(img_c.shape), list_contour, -1, (1,0,0), 3)
 
         contours_img[i,...] = img_contour
         contours_list.append(list_contour)
@@ -344,13 +333,26 @@ def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
 
 ### Helper
 
-def plot_history(hist, loss_name='loss', save_name = 'title'):
+def plot_history(hist, loss_name=['loss','val_loss'], save_name = 'title'):
     # Simple function to plot training history.
-    plt.figure()
-    plt.plot(hist.epoch, hist.history[loss_name], '.-')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.title(save_name)
-    title = 'Hist' + save_name + ".pdf"
-    plt.savefig(title)
-    plt.show()
+    if len(loss_name) == 2:
+        fig, ax1 = plt.subplots()
+        ax2 = ax1.twinx()
+        ax1.plot(hist.epoch, hist.history['loss'], '.-', c='r')
+        ax2.plot(hist.epoch, hist.history['val_loss'], '.-', c='b')
+        ax1.set_ylabel('loss', color='r')
+        ax2.set_ylabel('val_loss', color='b')
+        ax1.set_xlabel('epoch')
+        plt.title(save_name)
+        title = 'Hist' + save_name + ".pdf"
+        plt.savefig(title)
+        plt.show()
+    elif len(loss_name) == 1:
+        plt.figure()
+        plt.plot(hist.epoch, hist.history[loss_name[0]], '.-')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.title(save_name)
+        title = 'Hist' + save_name + ".pdf"
+        plt.savefig(title)
+        plt.show()
