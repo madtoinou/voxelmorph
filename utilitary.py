@@ -151,7 +151,8 @@ def np_MIP(array, list_keys, axis):
             MIP : np.array of dimensions (nb_vol, x, y, 3) of
                   the MIP.
     """
-    nb_vol, x,y,z = array.shape
+    _,x,y,z = array.shape
+    nb_vol = len(list_keys)
 
     if axis == 2:
         MIP = np.empty((nb_vol, x, y))
@@ -161,7 +162,7 @@ def np_MIP(array, list_keys, axis):
         MIP = np.empty((nb_vol, y, z))
 
     for i,key in enumerate(list_keys):
-        MIP[i] = np.max(data[i], axis = axis)
+        MIP[i] = np.max(array[i], axis = axis)
 
     return MIP
 
@@ -304,7 +305,7 @@ def rot_img(img, img_ctr, list_ctr):
 
 ### Voxelmorph set generation
 
-def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
+def vxm_data_generator(x_data, idx_fixed=None, vol_fixed=[], batch_size=32):
     """
     Generator that takes in data of size [N, H, W], and yields data for
     our custom vxm model. Note that we need to provide numpy data for each
@@ -327,11 +328,18 @@ def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
         # images need to be of the size [batch_size, H, W, 1]
         idx1 = np.random.randint(0, x_data.shape[0], size=batch_size)
         moving_images = x_data[idx1, ..., np.newaxis]
-        if idx_fixed == None:
-            idx2 = np.random.randint(0, x_data.shape[0], size=batch_size)
+        if len(vol_fixed) != 0:
+            #dummy indexes
+            idx2 = np.full((batch_size),0)
+            tmp = np.array([vol_fixed])
+            fixed_images = tmp[idx2,...,np.newaxis]
         else:
-            idx2 = np.full((batch_size),idx_fixed)
-        fixed_images = x_data[idx2, ..., np.newaxis]
+            if idx_fixed == None:
+                idx2 = np.random.randint(0, x_data.shape[0], size=batch_size)      
+            else:
+                idx2 = np.full((batch_size),idx_fixed)
+            fixed_images = x_data[idx2, ..., np.newaxis]
+        
         inputs = [moving_images, fixed_images]
 
         # prepare outputs (the 'true' moved image):
