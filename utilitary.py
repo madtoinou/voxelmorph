@@ -77,10 +77,10 @@ def find_contour(images, mod=1.1, blur=5):
 
     return contours_img, all_ret, contours_list
 
-# Mean Intensity Projection
+# Maximum Intensity Projection
 
 def single_MIP(data, list_keys, axis, channel=0):
-    """ Mean intensity projection (MIP) to axis
+    """ Maximum intensity projection (MIP) to axis
         Arguments :
             data : h5 data
             list_keys : list of keys contained in data
@@ -111,7 +111,7 @@ def single_MIP(data, list_keys, axis, channel=0):
     return MIP
 
 def MIP_GR(data, list_keys, axis):
-    """ Mean intensity projection (MIP) of red and green channels separately to axis
+    """ Maximum intensity projection (MIP) of red and green channels separately to axis
         Arguments :
             data : h5 data
             list_keys : list of keys contained in data
@@ -131,7 +131,7 @@ def MIP_GR(data, list_keys, axis):
     return r_MIP, g_MIP
 
 def np_MIP(array, list_keys, axis):
-    """ Mean intensity projection (MIP) to axis
+    """ Maximum intensity projection (MIP) to axis
         Arguments :
             data : numpy array
             list_keys : list of keys contained in data
