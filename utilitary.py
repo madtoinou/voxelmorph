@@ -165,6 +165,26 @@ def np_MIP(array, list_keys, axis):
 
     return MIP
 
+# Masks
+def r_masks(hf, use_key, x,y,z):
+    r_masks = np.empty((len(use_key), x, y, z), dtype=np.int8)
+
+    for i, key in enumerate(use_key):
+        a = hf.get(key)['frame'][0]
+        a = cv2.medianBlur(a, 5)
+        r_masks[i] = np.where(a > 130, 1, 0)
+    return r_masks
+
+
+def g_masked(hf, mask, use_key, x,y,z):
+    g_masked = np.empty((len(use_key), x, y, z), dtype=np.int16)
+
+    for i, key in enumerate(use_key):
+        a = hf.get(key)['frame'][1]
+        a = cv2.medianBlur(a, 5)
+        g_masked[i] = np.multiply(a, masks_red[i])
+    return g_masked
+
 # Cropping
 
 def crop_ctr_mass(img, img_ctr, size=128):
