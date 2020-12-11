@@ -22,26 +22,23 @@ def remove_empty_key(hf, keys):
 
 # Edge detection
 
-def find_contour(images, mod=1.1, blur=5):
+def find_contour(images, clamp_val=300, blur=5):
 
     """ Find the contour of all image in images
         Arguments:
             images : array of all images of interest.
-            mod : modulation of the OTSU threshold found
-            blur : medianBlur applied before searching the threshold
         Return:
             all_contours : contains all the contours of all the images.
                            Has the same shape as images
             all_ret : contains all the threshold used for all the images.
                            Has the same shape as images.shape[0]
-            contours_list : list of the contours
     """
     #single image
     if len(images.shape) == 2:
         images = images[np.newaxis,...]
 
     #pre-allocation
-    #thresholds
+    #thresholds?
     all_ret = np.empty(images.shape[0])
     #contours as image
     contours_img = np.empty(images.shape)
@@ -50,37 +47,34 @@ def find_contour(images, mod=1.1, blur=5):
 
     for i, img in enumerate(images):
 
-
+        img_c = img.copy()
+        # Clamp the values of img from [0, max_val]
+        img_c[img > clamp_val] = clamp_val
         # Change the type in uint8 for drawContours
-        img_c = (img*1000).astype(np.uint8)
+        img_c = (img/clamp_val*255).astype(np.uint8)
 
         # Blur the image to remove noise
         # alternative : cv2.GaussianBlur(im,(3,3),0)
         img_c = cv2.medianBlur(img_c,blur)
 
-        # Perform a binary threshold + OTSU
-        all_ret[i], th1 = cv2.threshold(img_c, 0, 1, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-
-        # Use a threshold = optimal threshold * 1.1 = all_ret[i]*1.1
-        # alternative : cv2.adaptiveThreshold(im2,im2.max(),cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        # cv2.THRESH_BINARY,3,2)
-        list_contour, th1 = cv2.threshold(img_c, all_ret[i]*mod, 1, cv2.THRESH_BINARY)
-
+        # Perform a binary threshold
+        all_ret[i], th1 = cv2.threshold(img_c, 120, 255, cv2.THRESH_BINARY)
         # Find contours (return as a list)
         list_contour, hierarchy = cv2.findContours(th1, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
         # Convert contours to image
-        img_contour = cv2.drawContours(np.zeros(img_c.shape), list_contour, -1, (1,0,0), 3)
+        img_contour = cv2.drawContours(np.zeros(img_c.shape), list_contour, -1, (255,0,0), 3)
+        # contour is in {0,1} <=> normalization
+        img_contour /= 255
 
         contours_img[i,...] = img_contour
         contours_list.append(list_contour)
 
     return contours_img, all_ret, contours_list
 
-# Maximum Intensity Projection
+# Max Intensity Projection
 
 def single_MIP(data, list_keys, axis, channel=0):
-    """ Maximum intensity projection (MIP) to axis
+    """ Max intensity projection (MIP) to axis
         Arguments :
             data : h5 data
             list_keys : list of keys contained in data
@@ -111,7 +105,7 @@ def single_MIP(data, list_keys, axis, channel=0):
     return MIP
 
 def MIP_GR(data, list_keys, axis):
-    """ Maximum intensity projection (MIP) of red and green channels separately to axis
+    """ Max intensity projection (MIP) of red and green channels separately to axis
         Arguments :
             data : h5 data
             list_keys : list of keys contained in data
@@ -131,7 +125,7 @@ def MIP_GR(data, list_keys, axis):
     return r_MIP, g_MIP
 
 def np_MIP(array, list_keys, axis):
-    """ Maximum intensity projection (MIP) to axis
+    """ Max intensity projection (MIP) to axis
         Arguments :
             data : numpy array
             list_keys : list of keys contained in data
@@ -156,19 +150,34 @@ def np_MIP(array, list_keys, axis):
 
 # Cropping
 
-def crop_ctr_mass(img, img_ctr, size=128):
+def crop_ctr_mass(img, size=128, nb_contour = 2):
     """ Crop image around its contours center of mass
         Arguments :
             img : numpy array
-            img_ctr : numpy array version of img contours
             size : distance to crop for each direction
         Returns :
             _ : np.array of dimensions (2*size,2*size)
         Use minimum mode to pad if the cropping exceed the
         initial image dimensions
     """
+
+    #Find the contour of img
+    _, _, contours_list = find_contour(img, clamp_val=300, blur=5)
+
+    #Compute perimeter of each closed contour
+    perim_contours = [(i, cv2.arcLength(cnt, True)) for i, cnt in enumerate(contours_list[0])]
+    #Sort contour by perimeter size
+    perim_contours.sort(key=lambda tup: tup[1], reverse=True)
+
+    tmp = np.zeros((img.shape))
+
+    # Draw the two biggest closed contour
+    for contour in perim_contours[:nb_contour]:
+        tmp = cv2.drawContours(tmp, contours_list[0][contour[0]], -1, (255,0,0), 3)
+
     #compute the center of mass of the binary contours
-    (x, y) = ndimage.center_of_mass(img_ctr)
+    (x, y) = ndimage.center_of_mass(tmp)
+
     #convert to int
     (x, y) = (int(x),int(y))
 
@@ -288,7 +297,7 @@ def rot_img(img, img_ctr, list_ctr):
     dy = ctr_mass_list[0][1] - ctr_mass_list[1][1]
     angle = np.degrees(np.arctan(dx/dy))
 
-    return ndimage.rotate(img,angle), ndimage.rotate(img_ctr,angle)
+    return ndimage.rotate(img, angle)
 
 
 ### Voxelmorph set generation
@@ -331,28 +340,44 @@ def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
 
         yield (inputs, outputs)
 
+def create_xy(val_data, fixed_idx):
+    """ Create a validation set for model.fit, of the same shape as
+        vxm_data_generator, but that returns the data as tuple
+        Arguments :
+            val_data : data for validation
+            fixed_idx : index of the fixed (reference) image
+        Returns :
+            tuple (x,y)
+            x = [moving_data, fixed_data]
+            y = [fixed_data, zero_phi]
+
+    """
+    ndims = len(val_data.shape[1:])
+    fixed_slice = val_data[fixed_idx,...]
+    fixed_data = (np.ones(val_data.shape) * fixed_slice)[..., np.newaxis]
+    moving_data = val_data[..., np.newaxis]
+    zero_phi = np.zeros([*val_data.shape, ndims])
+    x = [moving_data, fixed_data]
+    y = [fixed_data, zero_phi]
+    return (x,y)
+
 ### Helper
 
-def plot_history(hist, loss_name=['loss','val_loss'], save_name = 'title'):
+def plot_history(hist, param, loss_name=['loss','val_loss'], save_name = 'title'):
     # Simple function to plot training history.
-    if len(loss_name) == 2:
-        fig, ax1 = plt.subplots()
-        ax2 = ax1.twinx()
-        ax1.plot(hist.epoch, hist.history['loss'], '.-', c='r')
-        ax2.plot(hist.epoch, hist.history['val_loss'], '.-', c='b')
-        ax1.set_ylabel('loss', color='r')
-        ax2.set_ylabel('val_loss', color='b')
-        ax1.set_xlabel('epoch')
-        plt.title(save_name)
-        title = 'Hist' + save_name + ".pdf"
-        plt.savefig(title)
-        plt.show()
-    elif len(loss_name) == 1:
+    if len(loss_name)== 2:
         plt.figure()
         plt.plot(hist.epoch, hist.history[loss_name[0]], '.-')
+        plt.plot(hist.epoch, hist.history[loss_name[1]], '.-')
         plt.ylabel('loss')
         plt.xlabel('epoch')
-        plt.title(save_name)
-        title = 'Hist' + save_name + ".pdf"
-        plt.savefig(title)
+        plt.legend([loss_name[0], loss_name[1]])
+        plt.title(str(param))
+        plt.show()
+    elif len(loss_name)== 1:
+        plt.figure()
+        plt.plot(hist.epoch, hist.history[loss_name], '.-')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.title(str(param))
         plt.show()
