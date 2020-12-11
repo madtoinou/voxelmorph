@@ -149,7 +149,7 @@ val_input = [x[np.newaxis, ..., np.newaxis] for x in slices_train_3d]
 losses = [vxm.losses.MSE().loss, vxm.losses.Grad('l2').loss]
 
 # usually, we have to balance the two losses by a hyper-parameter
-lambda_param = 0.05
+lambda_param = 0.0005
 loss_weights = [1, lambda_param]
 
 
@@ -159,6 +159,9 @@ train_generator = util.vxm_data_generator(slices_train_3d,
                                           vol_fixed=np.array(hf.get('853')["frame"][0][:,:,:])/255,
                                           batch_size=4)
 
-vxm_model.fit(train_generator, epochs=5, steps_per_epoch=10, verbose=1);
+vxm_model.fit(train_generator,
+			  epochs=32,
+			  steps_per_epoch=32,
+			  verbose=0);
 
 vxm_model.save_weights("wght_3d_"+str(lambda_param)+".keras")
