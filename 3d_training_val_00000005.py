@@ -56,7 +56,7 @@ losses = [vxm.losses.MSE().loss, vxm.losses.Grad('l2').loss]
 fixed_vol = np.array(hf.get('853')["frame"][0][:,:,:])/255
 
 # usually, we have to balance the two losses by a hyper-parameter
-lambda_param = 0.05
+lambda_param = 0.0000005
 loss_weights = [1, lambda_param]
 
 batch_size = 4 
@@ -71,13 +71,15 @@ train_generator = util.vxm_data_generator(slices_train_3d[100:],
 
 xy_val = util.create_xy_3d(slices_train_3d[:100], fixed_vol)
 
+checkpoint = tf.keras.callbacks.ModelCheckpoint("best_model3D_MSE" + str(lambda_param) + ".hdf5", monitor='val_loss', verbose=1,
+                                 save_best_only=True, mode='auto', period=1)
 hist = vxm_model.fit(train_generator,
                      validation_data=xy_val,
                      validation_batch_size=batch_size,
-                     epochs=32, 
+                     epochs=32,
                      steps_per_epoch=32,
-                     verbose=0)
+                     verbose=1, callbacks=[checkpoint])
 
-vxm_model.save_weights("wght_3d_"+str(lambda_param)+"val.keras")
+vxm_model.save_weights("wght_3d_MSE_val_"+str(lambda_param)+".keras")
 
-util.export_history(hist, "hist_"+str(lambda_param)+"val.txt")
+util.export_history(hist, "hist_3d_MSE_val_"+str(lambda_param)+".txt")
