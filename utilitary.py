@@ -362,3 +362,17 @@ def plot_history(hist, loss_name='loss', save_name = 'title'):
     title = 'Hist' + save_name + ".pdf"
     plt.savefig(title)
     plt.show()
+    
+def export_history(hist, filename):
+    with open(filename,'w') as trg_file:
+        for epoch, loss, val_loss in zip(hist.epoch, hist.history['loss'], hist.history['val_loss']):
+            trg_file.write(str(epoch)+'\t'+str(loss)+'\t'+str(val_loss)+'\n')
+            
+def create_xy_3d(slices, fixed_vol):
+    nb_samples = len(slices)
+    idx2 = np.full((nb_samples),0)
+    tmp = np.array([fixed_vol])
+    fixed_data = tmp[idx2,...,np.newaxis]
+
+    moving_data = slices[..., np.newaxis]
+    return [moving_data, fixed_data]
