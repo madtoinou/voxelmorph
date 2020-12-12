@@ -352,27 +352,61 @@ def vxm_data_generator(x_data, idx_fixed=None, vol_fixed=[], batch_size=32):
 
 ### Helper
 
-def plot_history(hist, loss_name='loss', save_name = 'title'):
+def plot_history(hist, param, loss_name=['loss','val_loss'], save_name = 'title'):
     # Simple function to plot training history.
-    plt.figure()
-    plt.plot(hist.epoch, hist.history[loss_name], '.-')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.title(save_name)
-    title = 'Hist' + save_name + ".pdf"
-    plt.savefig(title)
-    plt.show()
+    if len(loss_name)== 2:
+        plt.figure()
+        plt.plot(hist.epoch, hist.history[loss_name[0]], '.-')
+        plt.plot(hist.epoch, hist.history[loss_name[1]], '.-')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend([loss_name[0], loss_name[1]])
+        plt.title(str(param))
+        plt.show()
+    elif len(loss_name)== 1:
+        plt.figure()
+        plt.plot(hist.epoch, hist.history[loss_name], '.-')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.title(str(param))
+        plt.show()
     
 def export_history(hist, filename):
     with open(filename,'w') as trg_file:
         for epoch, loss, val_loss in zip(hist.epoch, hist.history['loss'], hist.history['val_loss']):
             trg_file.write(str(epoch)+'\t'+str(loss)+'\t'+str(val_loss)+'\n')
+
             
+def create_xy(val_data, fixed_idx):
+    """ Create a validation set for model.fit, of the same shape as
+        vxm_data_generator, but that returns the data as tuple
+        Arguments :
+            val_data : data for validation
+            fixed_idx : index of the fixed (reference) image
+        Returns :
+            tuple (x,y)
+            x = [moving_data, fixed_data]
+            y = [fixed_data, zero_phi]
+    """
+    ndims = len(val_data.shape[1:])
+    fixed_slice = val_data[fixed_idx,...]
+    fixed_data = (np.ones(val_data.shape) * fixed_slice)[..., np.newaxis]
+    moving_data = val_data[..., np.newaxis]
+    zero_phi = np.zeros([*val_data.shape, ndims])
+    x = [moving_data, fixed_data]
+    y = [fixed_data, zero_phi]
+    return (x,y)
+
 def create_xy_3d(slices, fixed_vol):
     nb_samples = len(slices)
     idx2 = np.full((nb_samples),0)
     tmp = np.array([fixed_vol])
+    
     fixed_data = tmp[idx2,...,np.newaxis]
 
     moving_data = slices[..., np.newaxis]
-    return [moving_data, fixed_data]
+    
+    zero_phi = np.zeros([*slices.shape, nb_samples])
+    x = [moving_data, fixed_data]
+    y = [fixed_data, zero_phi]
+    return (x,y)

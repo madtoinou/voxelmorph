@@ -53,26 +53,31 @@ for i, key in enumerate(keys_test):
 # voxelmorph has a variety of custom loss classes
 losses = [vxm.losses.MSE().loss, vxm.losses.Grad('l2').loss]
 
+fixed_vol = np.array(hf.get('853')["frame"][0][:,:,:])/255
+
 # usually, we have to balance the two losses by a hyper-parameter
 lambda_param = 0.0005
 loss_weights = [1, lambda_param]
+
+batch_size = 2
 
 vxm_model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4), loss=losses, loss_weights=loss_weights)
 
 # create a generator with a constant fixed volume (keys='853')
 #chose this one because middle of the movie and provided with a label mask
 train_generator = util.vxm_data_generator(slices_train_3d[40:],
-                                          vol_fixed=np.array(hf.get('853')["frame"][0][:,:,:])/255,
-                                          batch_size=4)
+                                          vol_fixed=fixed_vol,
+                                          batch_size=batch_size)
 
-xy_val = create_xy_3d(slices_train_3d[:40], np.array(hf.get('853')["frame"][0][:,:,:])/255)
+xy_val = util.create_xy_3d(slices_train_3d[:40], fixed_vol)
 
 hist = vxm_model.fit(train_generator,
-              validation_data=xy_val,
-			  epochs=32,
-			  steps_per_epoch=32,
-			  verbose=0);
-
-util.export_history(hist, "hist_"+str(lambda_param)+".txt")
+                     validation_data=xy_val,
+                     validation_batch_size=batch_size,
+                     epochs=3, 
+                     steps_per_epoch=1,
+                     verbose=1)
 
 vxm_model.save_weights("wght_3d_"+str(lambda_param)+".keras")
+
+util.export_history(hist, "hist_"+str(lambda_param)+".txt")
