@@ -28,6 +28,10 @@ keys_random = np.random.permutation(list_keys)
 keys_train = keys_random[:int(nb_entries*0.8)]
 keys_test  = keys_random[int(nb_entries*0.8):]
 
+fixed_vol = np.array(hf.get('853')["frame"][0][:,:,:])/255
+
+del hf
+
 ### 3D MOTHERF*
 
 # our data will be of shape 112 x 112 x 32

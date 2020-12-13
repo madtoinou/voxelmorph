@@ -28,6 +28,10 @@ keys_random = np.random.permutation(list_keys)
 keys_train = keys_random[:int(nb_entries*0.8)]
 keys_test  = keys_random[int(nb_entries*0.8):]
 
+fixed_vol = np.array(hf.get('853')["frame"][0][:,:,:])/255
+
+del hf
+
 ### 3D MOTHERF*
 
 # our data will be of shape 112 x 112 x 32
@@ -39,8 +43,6 @@ nb_features = [
 
 # voxelmorph has a variety of custom loss classes
 losses = [vxm.losses.MSE().loss, vxm.losses.Grad('l2').loss]
-
-fixed_vol = np.array(hf.get('853')["frame"][0][:,:,:])/255
 
 # usually, we have to balance the two losses by a hyper-parameter
 lambda_param = 0.05
