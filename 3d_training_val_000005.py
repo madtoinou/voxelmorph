@@ -70,15 +70,16 @@ train_generator = util.vxm_data_generator(slices_train_3d[100:],
                                           batch_size=batch_size)
 
 xy_val = util.create_xy_3d(slices_train_3d[:100], fixed_vol)
-
-checkpoint = tf.keras.callbacks.ModelCheckpoint("best_model3D_MSE" + str(lambda_param) + ".hdf5", monitor='val_loss', verbose=1,
+"""
+checkpoint = tf.keras.callbacks.ModelCheckpoint("best_model3D_MSE" + str(lambda_param) + ".hdf5", monitor='val_loss', verbose=0,
                                  save_best_only=True, mode='auto', period=1)
+"""
 hist = vxm_model.fit(train_generator,
                      validation_data=xy_val,
                      validation_batch_size=batch_size,
                      epochs=32,
                      steps_per_epoch=32,
-                     verbose=0, callbacks=[checkpoint])
+                     verbose=1)
 
 vxm_model.save_weights("wght_3d_MSE_val_"+str(lambda_param)+".keras")
 
