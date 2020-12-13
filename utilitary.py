@@ -365,16 +365,20 @@ def plot_history(hist, param, loss_name=['loss','val_loss'], save_name = 'title'
         plt.show()
     elif len(loss_name)== 1:
         plt.figure()
-        plt.plot(hist.epoch, hist.history[loss_name], '.-')
+        plt.plot(hist.epoch, hist.history[loss_name[0]], '.-')
         plt.ylabel('loss')
         plt.xlabel('epoch')
         plt.title(str(param))
         plt.show()
     
-def export_history(hist, filename):
+def export_history(hist, filename, loss_name=['loss']):
     with open(filename,'w') as trg_file:
-        for epoch, loss, val_loss in zip(hist.epoch, hist.history['loss'], hist.history['val_loss']):
-            trg_file.write(str(epoch)+'\t'+str(loss)+'\t'+str(val_loss)+'\n')
+        if len(loss_name) ==1:
+            for epoch, loss in zip(hist.epoch, hist.history[loss_name[0]]):
+                trg_file.write(str(epoch)+'\t'+str(loss)+'\n')
+        else:
+            for epoch, loss, val_loss in zip(hist.epoch, hist.history['loss'], hist.history['val_loss']):
+                trg_file.write(str(epoch)+'\t'+str(loss)+'\t'+str(val_loss)+'\n')
 
             
 def create_xy(val_data, fixed_idx):
