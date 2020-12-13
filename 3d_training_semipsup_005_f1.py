@@ -77,6 +77,6 @@ hist = vxm_model_semisup.fit(train_generator,
                              steps_per_epoch=32,
                              verbose=1);
 
-vxm_model_semisup.save_weights("wght_3d_unsup_"+str(lambda_param)+".keras")
+vxm_model_semisup.save_weights("wght_3d_semisup_f1_32steps_"+str(lambda_param)+".keras")
 
-util.export_history(hist, "hist_3d_unsup_"+str(lambda_param)+".txt")
+util.export_history(hist, "hist_3d_semisup_f1_32steps_"+str(lambda_param)+".txt")
