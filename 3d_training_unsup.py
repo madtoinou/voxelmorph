@@ -2,8 +2,9 @@
 # coding: utf-8
 
 """
-python 3d_training_semipsup.py --image-loss 'mse' --grad-loss-weight 0.05 --savename 'name' --epochs 1 --steps-per-epoch 3
+python 3d_training_unsup.py --image-loss 'mse' --grad-loss-weight 0.05 --savename 'name' --epochs 1 --steps-per-epoch 3
 """
+
 # voxel morph imports
 import os
 import random
@@ -41,7 +42,7 @@ parser.add_argument('--seed', type=int, default=336699, help='random seed')
 # network architecture parameters
 parser.add_argument('--enc', type=int, nargs='+', help='list of unet encoder filters (default: 16 32 32 32)')
 parser.add_argument('--dec', type=int, nargs='+', help='list of unet decorder filters (default: 32 32 32 32 32 16 16)')
-parser.add_argument('--int-steps', type=int, default=7, help='number of integration steps (default: 7)')
+parser.add_argument('--int-steps', type=int, default=0, help='number of integration steps (default: 7)')
 parser.add_argument('--int-downsize', type=int, default=1, help='flow downsample factor for integration (default: 2)')
 
 # loss hyperparameters
@@ -50,19 +51,16 @@ parser.add_argument('--grad-loss-weight', type=float, default=0.01, help='weight
 parser.add_argument('--dice-loss-weight', type=float, default=0.01, help='weight of dice loss (gamma) (default: 0.01)')
 args = parser.parse_args()
 
-
-
-np.random.seed(args.seed)
+np.random.seed(336699)
 
 hf = h5py.File("epfl3.h5", "r")
 list_keys = list(hf.keys())
 #The atlas should not be taken into the training set
 list_keys.remove(args.atlas)
-nb_entries = len(list_keys)
+nb_entries = len(hf.keys())
 keys_random = np.random.permutation(list_keys)
 #Training on 80% of the dataset
 keys_train = keys_random[:int(nb_entries*0.8)]
-del hf
 
 # load and prepare training data
 train_vol_names = ['vol'+str(key)+'.npz' for key in keys_train]
@@ -70,32 +68,23 @@ assert len(train_vol_names) > 0, 'Could not find any training data'
 
 # list of labels
 train_labels = np.array([1,2,3,4,5,6,7])
+# atlas
+atlas = np.load('vol' + args.atlas + '.npz')['vol'][np.newaxis,...,np.newaxis]
 
 # size of validation set
 val_entries = 30
 # create a generator with an atlas
-train_generator = vxm.generators.semisupervised(vol_names=train_vol_names[(val_entries+1):],
-                                                labels=train_labels,
-                                                atlas_file='vol' + args.atlas + '.npz')
-# validation generator with an atlas
-val_generator = vxm.generators.semisupervised(vol_names=train_vol_names[:(val_entries+1)],
-                                              atlas_file='vol' + args.atlas + '.npz',
-                                              labels=train_labels
-                                              )
+#chose this one because middle of the movie and provided with a label mask
+train_generator = vxm.generators.scan_to_atlas(train_vol_names[(val_entries+1):],
+											   atlas = atlas,
+											   batch_size=args.batch_size)
 
-# put the validation set in the correct shape
-tmp = [next(val_generator) for i in range(val_entries)]
-x = [
-    [tmp[i][0][0] for i in range(val_entries)],
-    [tmp[i][0][1] for i in range(val_entries)],
-    [tmp[i][0][2] for i in range(val_entries)]
-    ]
-y = [
-    [tmp[i][1][0] for i in range(val_entries)],
-    [tmp[i][1][1] for i in range(val_entries)],
-    [tmp[i][1][2] for i in range(val_entries)]
-	]
-xy_val = (x,y)
+# load the validation set into a numpy array
+slices_val_3d = np.zeros((len(keys_train[:(val_entries+1)]),112,112,32))
+for i, key in enumerate(keys_train[:(val_entries+1)]):
+    slices_val_3d[i] = np.load('vol'+key+'.npz')['vol']
+# put it in the correct shape
+xy_val = util.create_xy_3d(slices_val_3d, atlas.squeeze())
 
 # extract shape from sampled input
 inshape = next(train_generator)[0][0].shape[1:-1]
@@ -109,14 +98,11 @@ dec_nf = args.dec if args.dec else [32, 32, 32, 32, 32, 16, 16]
 
 with tf.device(device):
 
-    # build the model
-    model = vxm.networks.VxmDenseSemiSupervisedSeg(
-        inshape=inshape,
-        nb_unet_features=[enc_nf, dec_nf],
-        nb_labels=len(train_labels),
-        int_steps=args.int_steps,
-        int_downsize=args.int_downsize
-    )
+    # build vxm network
+    vxm_model = vxm.networks.VxmDense(inshape = inshape,
+                                      nb_unet_features=[enc_nf, dec_nf],
+                                      int_steps=args.int_steps)
+
 
     # prepare image loss
     # normalized cross-correlation
@@ -132,17 +118,17 @@ with tf.device(device):
     losses  = [image_loss_func, vxm.losses.Grad('l2', loss_mult=args.int_downsize).loss, vxm.losses.Dice().loss]
     weights = [1, args.grad_loss_weight, args.dice_loss_weight]
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(lr=args.lr), loss=losses, loss_weights=weights)
+    vxm_model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4),
+    				  loss=losses,
+    				  loss_weights=weights)
 
-    hist = model.fit(train_generator,
-        initial_epoch=args.initial_epoch,
-        epochs=args.epochs,
-        steps_per_epoch=args.steps_per_epoch,
-        validation_data=xy_val,
-        validation_batch_size=args.batch_size,
-        verbose=1
-    )
-    #save the last weights
-    model.save_weights(args.savename + str(args.grad_loss_weight) + ".keras")
-    #Save the losses in a txt file
+    hist = vxm_model.fit(train_generator,
+                         validation_data=xy_val,
+                         validation_batch_size=args.batch_size,
+                         epochs=args.epochs,
+                         steps_per_epoch=args.steps_per_epoch,
+                         verbose=1)
+
+    vxm_model.save_weights(args.savename + str(args.grad_loss_weight) + ".keras")
+
     util.export_history(hist, args.savename + str(args.grad_loss_weight) + ".txt")
