@@ -74,10 +74,12 @@ train_labels = np.array([1,2,3,4,5,6,7])
 # size of validation set
 val_entries = 30
 # create a generator with an atlas
+# The first 30 entries are kept for validation
 train_generator = vxm.generators.semisupervised(vol_names=train_vol_names[(val_entries+1):],
                                                 labels=train_labels,
                                                 atlas_file='vol' + args.atlas + '.npz')
 # validation generator with an atlas
+# the validation is taken from the 30 first training data
 val_generator = vxm.generators.semisupervised(vol_names=train_vol_names[:(val_entries+1)],
                                               atlas_file='vol' + args.atlas + '.npz',
                                               labels=train_labels

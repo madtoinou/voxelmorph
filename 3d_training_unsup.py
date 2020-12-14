@@ -73,13 +73,14 @@ atlas = np.load('vol' + args.atlas + '.npz')['vol'][np.newaxis,...,np.newaxis]
 
 # size of validation set
 val_entries = 30
-# create a generator with an atlas
-#chose this one because middle of the movie and provided with a label mask
+# create a train generator with an atlas
+# The first 30 entries are kept for validation
 train_generator = vxm.generators.scan_to_atlas(train_vol_names[(val_entries+1):],
 											   atlas = atlas,
 											   batch_size=args.batch_size)
 
 # load the validation set into a numpy array
+# the validation is taken from the 30 first training data
 slices_val_3d = np.zeros((len(keys_train[:(val_entries+1)]),112,112,32))
 for i, key in enumerate(keys_train[:(val_entries+1)]):
     slices_val_3d[i] = np.load('vol'+key+'.npz')['vol']
@@ -128,7 +129,7 @@ with tf.device(device):
                          epochs=args.epochs,
                          steps_per_epoch=args.steps_per_epoch,
                          verbose=1)
-
+    #save the last weights
     vxm_model.save_weights(args.savename + str(args.grad_loss_weight) + ".keras")
-
+    #Save the losses per epoch in a txt file
     util.export_history(hist, args.savename + str(args.grad_loss_weight) + ".txt")
