@@ -371,7 +371,7 @@ def plot_history(hist, param, loss_name=['loss','val_loss'], save_name = 'title'
         plt.title(str(param))
         plt.show()
     
-def export_history(hist, filename, loss_name=['loss']):
+def export_history(hist, filename, loss_name=['loss', 'val_loss']):
     with open(filename,'w') as trg_file:
         if len(loss_name) ==1:
             for epoch, loss in zip(hist.epoch, hist.history[loss_name[0]]):
