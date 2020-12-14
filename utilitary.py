@@ -414,3 +414,16 @@ def create_xy_3d(slices, fixed_vol):
     x = [moving_data, fixed_data]
     y = [fixed_data, zero_phi]
     return (x,y)
+
+def dice_coef(pred, true, k = 0):
+    intersection = np.sum(pred[true==k]) * 2.0
+    dice = intersection / (np.sum(pred) + np.sum(true))
+    # returns values between 0 and 1
+    return 1-dice
+
+def avg_dice_score(pred, true):
+    dice_score = []
+    for i in range(pred.shape[0]):
+        for j in range(pred.shape[-1]):
+            dice_score.append(dice_coef(pred[i],true))
+    return np.mean(dice_score), np.std(dice_score)
