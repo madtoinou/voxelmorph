@@ -13,7 +13,7 @@ list_keys = list(hf.keys())
 #export the training set + normalization
 for key in list_keys:
     #clamping
-    tmp=np.array(hf.get(key)["frame"])
+    tmp=np.array(hf.get(key)["frame"][0])
     tmp[np.where(tmp > 255)] = 255
     
     #save normalize frame and its mask
