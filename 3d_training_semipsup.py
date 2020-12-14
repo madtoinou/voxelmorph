@@ -28,6 +28,7 @@ parser.add_argument('--savename', help='saving name')
 parser.add_argument('--gpu', default='0', help='GPU ID numbers (default: 0)')
 parser.add_argument('--epochs', type=int, default=32, help='number of training epochs (default: 1500)')
 parser.add_argument('--steps-per-epoch', type=int, default=250, help='frequency of model saves (default: 100)')
+parser.add_argument('--batch-size', type=int, default=4, help='size of the batch')
 # parser.add_argument('--load-weights', help='optional weights file to initialize with')
 parser.add_argument('--initial-epoch', type=int, default=0, help='initial epoch number (default: 0)')
 parser.add_argument('--lr', type=float, default=1e-4, help='learning rate (default: 1e-4)')
@@ -66,9 +67,33 @@ assert len(train_vol_names) > 0, 'Could not find any training data'
 # list of labels
 train_labels = np.array([1,2,3,4,5,6,7])
 
-train_generator = vxm.generators.semisupervised(vol_names=train_vol_names,
+# size of validation set
+val_entries = 30
+train_generator = vxm.generators.semisupervised(vol_names=train_vol_names[(val_entries+1):],
                                                 labels=train_labels,
                                                 atlas_file='vol' + args.atlas + '.npz')
+#validation generator
+val_generator = vxm.generators.semisupervised(vol_names=train_vol_names[:(val_entries+1)],
+                                              atlas_file='vol' + args.atlas + '.npz',
+                                              labels=train_labels
+                                              )
+
+
+tmp = [next(val_generator) for i in range(val_entries)]
+x = [
+    [tmp[i][0][0] for i in range(val_entries)],
+    [tmp[i][0][1] for i in range(val_entries)],
+    [tmp[i][0][2] for i in range(val_entries)]
+    ]
+
+y = [
+    [tmp[i][1][0] for i in range(val_entries)],
+    [tmp[i][1][1] for i in range(val_entries)],
+    [tmp[i][1][2] for i in range(val_entries)]
+	]
+
+xy_val = (x,y)
+
 # extract shape from sampled input
 inshape = next(train_generator)[0][0].shape[1:-1]
 
@@ -108,6 +133,8 @@ with tf.device(device):
         initial_epoch=args.initial_epoch,
         epochs=args.epochs,
         steps_per_epoch=args.steps_per_epoch,
+        validation_data=xy_val,
+        validation_batch_size=args.batch_size,
         verbose=1
     )
     #save the last weights
