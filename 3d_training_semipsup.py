@@ -87,16 +87,8 @@ val_generator = vxm.generators.semisupervised(vol_names=train_vol_names[:(val_en
 
 # put the validation set in the correct shape
 tmp = [next(val_generator) for i in range(val_entries)]
-x = [
-    [tmp[i][0][0] for i in range(val_entries)],
-    [tmp[i][0][1] for i in range(val_entries)],
-    [tmp[i][0][2] for i in range(val_entries)]
-    ]
-y = [
-    [tmp[i][1][0] for i in range(val_entries)],
-    [tmp[i][1][1] for i in range(val_entries)],
-    [tmp[i][1][2] for i in range(val_entries)]
-	]
+x = [tmp[i][0] for i in range(val_entries)]
+y = [tmp[i][1] for i in range(val_entries)]
 xy_val = (x,y)
 
 # extract shape from sampled input
