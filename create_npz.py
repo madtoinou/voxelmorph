@@ -13,7 +13,7 @@ import h5py
 import cv2
 
 import utilitary as util
-
+from numpy import savez_compressed
 #plotting
 import matplotlib.pyplot as plt
 
