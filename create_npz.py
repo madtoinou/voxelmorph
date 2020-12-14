@@ -8,7 +8,7 @@ import numpy as np
 
 np.random.seed(336699)
 
-hf = h5py.File("epfl3.h5", "r")
+hf = h5py.File("../epfl3.h5", "r")
 
 nb_entries = len(hf.keys())
 list_keys = list(hf.keys())
