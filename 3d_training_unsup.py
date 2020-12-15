@@ -51,7 +51,7 @@ parser.add_argument('--grad-loss-weight', type=float, default=0.01, help='weight
 parser.add_argument('--dice-loss-weight', type=float, default=0.01, help='weight of dice loss (gamma) (default: 0.01)')
 args = parser.parse_args()
 
-np.random.seed(336699)
+np.random.seed(args.seed)
 
 hf = h5py.File("epfl3.h5", "r")
 list_keys = list(hf.keys())
