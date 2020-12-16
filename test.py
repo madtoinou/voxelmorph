@@ -26,7 +26,6 @@ parser.add_argument('--dec', type=int, nargs='+', help='list of unet decorder fi
 args = parser.parse_args()
 
 np.random.seed(args.seed)
-print(args.seed)
 
 #load the data-set
 hf = h5py.File("epfl3.h5", "r")
@@ -40,10 +39,8 @@ nb_entries = len(hf.keys())
 keys_random = np.random.permutation(list_keys)
 keys_train = keys_random[:int(nb_entries*0.8)]
 keys_test  = keys_random[int(nb_entries*0.8):]
-
 # The reference/the atlas/the fixed is chosen
 key_fixed = int(args.atlas)
-fixed_vol = (np.array(hf.get(str(key_fixed))["frame"][0][:,:,:])-93)/(255-93)
 fixed_seg = np.array(hf.get(str(key_fixed))["mask"])
 
 # keys in test set with labels mask
