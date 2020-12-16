@@ -71,10 +71,10 @@ def find_contour(images, clamp_val=300, blur=5):
 
     return contours_img, all_ret, contours_list
 
-# Max Intensity Projection
+# Mean Intensity Projection
 
 def single_MIP(data, list_keys, axis, channel=0):
-    """ Max intensity projection (MIP) to axis
+    """ Mean intensity projection (MIP) to axis
         Arguments :
             data : h5 data
             list_keys : list of keys contained in data
@@ -105,7 +105,7 @@ def single_MIP(data, list_keys, axis, channel=0):
     return MIP
 
 def MIP_GR(data, list_keys, axis):
-    """ Max intensity projection (MIP) of red and green channels separately to axis
+    """ Mean intensity projection (MIP) of red and green channels separately to axis
         Arguments :
             data : h5 data
             list_keys : list of keys contained in data
@@ -125,7 +125,7 @@ def MIP_GR(data, list_keys, axis):
     return r_MIP, g_MIP
 
 def np_MIP(array, list_keys, axis):
-    """ Max intensity projection (MIP) to axis
+    """ Mean intensity projection (MIP) to axis
         Arguments :
             data : numpy array
             list_keys : list of keys contained in data
@@ -134,7 +134,7 @@ def np_MIP(array, list_keys, axis):
             MIP : np.array of dimensions (nb_vol, x, y, 3) of
                   the MIP.
     """
-    nb_vol, x,y,z = array.shape
+    nb_vol,x,y,z = array.shape
 
     if axis == 2:
         MIP = np.empty((nb_vol, x, y))
@@ -297,12 +297,12 @@ def rot_img(img, img_ctr, list_ctr):
     dy = ctr_mass_list[0][1] - ctr_mass_list[1][1]
     angle = np.degrees(np.arctan(dx/dy))
 
-    return ndimage.rotate(img, angle)
+    return ndimage.rotate(img,angle)
 
 
 ### Voxelmorph set generation
 
-def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
+def vxm_data_generator(x_data, idx_fixed=None, vol_fixed=[], batch_size=32):
     """
     Generator that takes in data of size [N, H, W], and yields data for
     our custom vxm model. Note that we need to provide numpy data for each
@@ -325,11 +325,18 @@ def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
         # images need to be of the size [batch_size, H, W, 1]
         idx1 = np.random.randint(0, x_data.shape[0], size=batch_size)
         moving_images = x_data[idx1, ..., np.newaxis]
-        if idx_fixed == None:
-            idx2 = np.random.randint(0, x_data.shape[0], size=batch_size)
+        if len(vol_fixed) != 0:
+            #dummy indexes
+            idx2 = np.full((batch_size),0)
+            tmp = np.array([vol_fixed])
+            fixed_images = tmp[idx2,...,np.newaxis]
         else:
-            idx2 = np.full((batch_size),idx_fixed)
-        fixed_images = x_data[idx2, ..., np.newaxis]
+            if idx_fixed == None:
+                idx2 = np.random.randint(0, x_data.shape[0], size=batch_size)
+            else:
+                idx2 = np.full((batch_size),idx_fixed)
+            fixed_images = x_data[idx2, ..., np.newaxis]
+
         inputs = [moving_images, fixed_images]
 
         # prepare outputs (the 'true' moved image):
@@ -340,31 +347,16 @@ def vxm_data_generator(x_data, idx_fixed=None, batch_size=32):
 
         yield (inputs, outputs)
 
-def create_xy(val_data, fixed_idx):
-    """ Create a validation set for model.fit, of the same shape as
-        vxm_data_generator, but that returns the data as tuple
-        Arguments :
-            val_data : data for validation
-            fixed_idx : index of the fixed (reference) image
-        Returns :
-            tuple (x,y)
-            x = [moving_data, fixed_data]
-            y = [fixed_data, zero_phi]
-
-    """
-    ndims = len(val_data.shape[1:])
-    fixed_slice = val_data[fixed_idx,...]
-    fixed_data = (np.ones(val_data.shape) * fixed_slice)[..., np.newaxis]
-    moving_data = val_data[..., np.newaxis]
-    zero_phi = np.zeros([*val_data.shape, ndims])
-    x = [moving_data, fixed_data]
-    y = [fixed_data, zero_phi]
-    return (x,y)
-
 ### Helper
 
-def plot_history(hist, param, loss_name=['loss','val_loss'], save_name = 'title'):
-    # Simple function to plot training history.
+def plot_history(hist, param, loss_name=['loss','val_loss']):
+    """ Simple function to plot training history
+        Arguments :
+            hist : history output of model.fit
+            param : the value of the parameters
+            loss_name : the name of the losses to plot
+    """
+
     if len(loss_name)== 2:
         plt.figure()
         plt.plot(hist.epoch, hist.history[loss_name[0]], '.-')
@@ -376,8 +368,61 @@ def plot_history(hist, param, loss_name=['loss','val_loss'], save_name = 'title'
         plt.show()
     elif len(loss_name)== 1:
         plt.figure()
-        plt.plot(hist.epoch, hist.history[loss_name], '.-')
+        plt.plot(hist.epoch, hist.history[loss_name[0]], '.-')
         plt.ylabel('loss')
         plt.xlabel('epoch')
         plt.title(str(param))
         plt.show()
+
+def export_history(hist, filename, loss_name=['loss', 'val_loss']):
+    """ Export the history (output of model.fit) in a txt files
+        Arguments :
+            hist : the history
+            filename : the name of the file in which to save the history
+            loss_name : the name of the losses to save
+    """
+    with open(filename,'w') as trg_file:
+        if len(loss_name) ==1:
+            for epoch, loss in zip(hist.epoch, hist.history[loss_name[0]]):
+                trg_file.write(str(epoch)+'\t'+str(loss)+'\n')
+        else:
+            for epoch, loss, val_loss in zip(hist.epoch, hist.history['loss'], hist.history['val_loss']):
+                trg_file.write(str(epoch)+'\t'+str(loss)+'\t'+str(val_loss)+'\n')
+
+def create_xy_3d(slices, fixed_vol):
+    """ Create a validation set for model.fit, of the same shape as
+        vxm_data_generator, but that returns the data as tuple.
+        Works for 2D and 3D.
+        Arguments :
+            val_data : data for validation
+            fixed_idx : index of the fixed (reference) image
+        Returns :
+            tuple (x,y)
+            x = [moving_data, fixed_data]
+            y = [fixed_data, zero_phi]
+    """
+    nb_samples = len(slices)
+    idx2 = np.full((nb_samples),0)
+    tmp = np.array([fixed_vol])
+
+    fixed_data = tmp[idx2,...,np.newaxis]
+
+    moving_data = slices[..., np.newaxis]
+
+    zero_phi = np.zeros([*slices.shape, nb_samples])
+    x = [moving_data, fixed_data]
+    y = [fixed_data, zero_phi]
+
+    return (x,y)
+
+def avg_dice_score(pred, true):
+    """ Calculate the average dice score
+        Arguments :
+            pred : predictions
+            true : the labelled data
+    """
+    dice_score = []
+    for i in range(pred.shape[0]):
+        for j in range(pred.shape[-1]):
+            dice_score.append(dice_coef(pred[i],true))
+    return np.mean(dice_score), np.std(dice_score)
