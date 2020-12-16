@@ -2,7 +2,6 @@
 import os, sys
 import numpy as np
 import argparse
-import voxelmorph as vxm
 import h5py
 import cv2
 import utilitary as util
@@ -15,7 +14,7 @@ args = parser.parse_args()
 
 
 np.random.seed(args.seed)
-
+# load the raw data
 hf = h5py.File("dataset2.h5", "r")
 keys = hf.keys()
 # the last three entries are empty
