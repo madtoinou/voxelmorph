@@ -9,7 +9,13 @@ Visit the [VoxelMorph tutorial](http://tutorial.voxelmorph.net/) to learn about 
 
 # Instructions
 
-To use the VoxelMorph library, either clone this repository and install the requirements listed in `setup.py` or install directly with pip.
+To use the VoxelMorph library, either clone this repository and install the requirements listed in `setup.py` (recommanded, contains dependencies for volume pre-processing and data-set import)
+
+```
+pip install -r setup.txt
+```
+
+or install directly with pip.
 
 ```
 pip install voxelmorph
@@ -49,50 +55,6 @@ To test the quality of a model by computing dice overlap between an atlas segmen
 
 Just like for the training data, the atlas and test npz files include `vol` and `seg` parameters and the `labels.npz` file contains a list of corresponding anatomical labels to include in the computed dice score.
 
-
 ## Parameter choices
 
-
-### CVPR version
-
-For the CC loss function, we found a reg parameter of 1 to work best. For the MSE loss function, we found 0.01 to work best.
-
-
-### MICCAI version
-
-For our data, we found `image_sigma=0.01` and `prior_lambda=25` to work best.
-
-In the original MICCAI code, the parameters were applied after the scaling of the velocity field. With the newest code, this has been "fixed", with different default parameters reflecting the change. We recommend running the updated code. However, if you'd like to run the very original MICCAI2018 mode, please use `xy` indexing and `use_miccai_int` network option, with MICCAI2018 parameters.
-
-
-## Spatial Transforms and Integration
-
-- The spatial transform code, found at `voxelmorph.layers.SpatialTransformer`, accepts N-dimensional affine and dense transforms, including linear and nearest neighbor interpolation options. Note that original development of VoxelMorph used `xy` indexing, whereas we are now emphasizing `ij` indexing.
-
-- For the MICCAI2018 version, we integrate the velocity field using `voxelmorph.layers.VecInt`. By default we integrate using scaling and squaring, which we found efficient.
-
-# Notes:
-- **keywords**: machine learning, convolutional neural networks, alignment, mapping, registration  
-- The `master` branch is still in testing as we roll out a major refactoring of the library.     
-- If you'd like to run code from VoxelMorph publications, please use the `legacy` branch.  
-- **data in papers**: 
-In our initial papers, we used publicly available data, but unfortunately we cannot redistribute it (due to the constraints of those datasets). We do a certain amount of pre-processing for the brain images we work with, to eliminate sources of variation and be able to compare algorithms on a level playing field. In particular, we perform FreeSurfer `recon-all` steps up to skull stripping and affine normalization to Talairach space, and crop the images via `((48, 48), (31, 33), (3, 29))`. 
-
-We encourage users to download and process their own data. See [a list of medical imaging datasets here](https://github.com/adalca/medical-datasets). Note that you likely do not need to perform all of the preprocessing steps, and indeed VoxelMorph has been used in other work with other data.
-
-
-# Creation of Deformable Templates
-
-We present a template consturction method in this [preprint](https://arxiv.org/abs/1908.02738): 
-
-  *  **Learning Conditional Deformable Templates with Convolutional Networks**  
-  [Adrian V. Dalca](http://adalca.mit.edu), [Marianne Rakic](https://mariannerakic.github.io/), [John Guttag](https://people.csail.mit.edu/guttag/), [Mert R. Sabuncu](http://sabuncu.engineering.cornell.edu/)
-  NeurIPS 2019. [eprint arXiv:1908.02738](https://arxiv.org/abs/1908.02738)
-
-To experiment with this method, please use `train_template.py` for unconditional templates and `train_cond_template.py` for conditional templates, which use the same conventions as voxelmorph (please note that these files are less polished than the rest of the voxelmorph library).
-
-We've also provided an unconditional atlas in `data/generated_uncond_atlas.npz.npy`. 
-
-Models in h5 format weights are provided for [unconditional atlas here](http://people.csail.mit.edu/adalca/voxelmorph/atlas_creation_uncond_NCC_1500.h5), and [conditional atlas here](http://people.csail.mit.edu/adalca/voxelmorph/atlas_creation_cond_NCC_1022.h5).
-
-**Explore the atlases [interactively here](http://voxelmorph.mit.edu/atlas_creation/)** with tipiX!
+In the folder weights, you can find the weights of the 2 best semi-supervised models we developped. Their loss function is respectively MSE and NCC.
