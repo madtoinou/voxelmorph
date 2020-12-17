@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--atlas', default = '904', help='optional atlas to perform scan-to-atlas training')
 parser.add_argument('--name-weights', help='the name of the model weights')
 parser.add_argument('--seed', type=int, default=336699, help='random seed')
+parser.add_argument('--model', default='semisup', help='unsup or semisup')
 
 # network architecture parameters
 parser.add_argument('--enc', type=int, nargs='+', help='list of unet encoder filters (default: 16 32 32 32)')
@@ -40,8 +41,7 @@ keys_random = np.random.permutation(list_keys)
 keys_train = keys_random[:int(nb_entries*0.8)]
 keys_test  = keys_random[int(nb_entries*0.8):]
 # The reference/the atlas/the fixed is chosen
-key_fixed = int(args.atlas)
-fixed_seg = np.array(hf.get(str(key_fixed))["mask"])
+fixed_seg = np.array(hf.get(args.atlas)["mask"])
 
 # keys in test set with labels mask
 mask_tests = []
@@ -56,22 +56,35 @@ dec_nf = args.dec if args.dec else [32, 32, 32, 32, 32, 16, 16]
 
 # Different values possible of the labels
 label_vals = np.array([1,2,3,4,5,6,7])
+if args.model == 'semisup':
+    vxm_model = vxm.networks.VxmDenseSemiSupervisedSeg(
+                                            inshape=vol_shape,
+                                            nb_labels=len(label_vals),
+                                            nb_unet_features=[enc_nf, dec_nf],
+                                            int_steps=0)
+else :
+    # build vxm network
+    vxm_model = vxm.networks.VxmDense(inshape = vol_shape,
+                                      nb_unet_features=[enc_nf, dec_nf],
+                                      int_steps=0)
 
-vxm_model = vxm.networks.VxmDenseSemiSupervisedSeg(
-                                        inshape=vol_shape,
-                                        nb_labels=len(label_vals),
-                                        nb_unet_features=[enc_nf, dec_nf],
-                                        int_steps=0)
 vxm_model.load_weights(args.name_weights)
-
 #load test volumes
 vols_names = ['vol'+str(i)+'.npz' for i in keys_test]
 
-predict_generator = vxm.generators.semisupervised(
-                        vol_names=vols_names,
+if args.model == 'semisup':
 
-                        labels=label_vals)
-val_input = [next(predict_generator) for i in range(len(mask_tests))]
+    predict_generator = vxm.generators.semisupervised(
+                            vol_names=vols_names,
+                            labels=label_vals)
+    val_input = [next(predict_generator) for i in range(len(mask_tests))]
+else :
+    # atlas
+    atlas = np.load('vol' + args.atlas + '.npz')['vol'][np.newaxis,...,np.newaxis]
+    predict_generator = vxm.generators.scan_to_atlas(vols_names,
+                                                    atlas = atlas)
+    val_input = [next(predict_generator) for i in range(len(mask_tests))]
+
 # predict the transformation
 val_pred = []
 for i in range(len(mask_tests)):
