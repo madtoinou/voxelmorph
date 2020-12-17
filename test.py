@@ -79,16 +79,23 @@ if args.model == 'semisup':
                             labels=label_vals)
     val_input = [next(predict_generator) for i in range(len(mask_tests))]
 else :
-    # atlas
-    atlas = np.load('vol' + args.atlas + '.npz')['vol'][np.newaxis,...,np.newaxis]
-    predict_generator = vxm.generators.scan_to_atlas(vols_names,
-                                                    atlas = atlas)
-    val_input = [next(predict_generator) for i in range(len(mask_tests))]
+    #atlas
+    #atlas = np.load('vol' + args.atlas + '.npz')['vol'][np.newaxis,...,np.newaxis]
+    #predict_generator = vxm.generators.scan_to_atlas(vols_names,
+    #                                                atlas = atlas)
+    #val_input = [next(predict_generator) for i in range(len(mask_tests))]
+    slices_test_3d_vol = np.empty((len(mask_tests),*vol_shape))
+    for i, key in enumerate(mask_tests):
+        slices_test_3d_vol[i] = np.load('vol' + key + '.npz')['vol']
+    
+    val_input = util.vxm_data_generator(slices_test_3d_vol,
+                                        vol_fixed=np.load('vol' + args.atlas + '.npz')['vol'],
+                                        batch_size=len(slices_test_3d_vol))
 
 # predict the transformation
 val_pred = []
 for i in range(len(mask_tests)):
-    val_pred.append(vxm_model.predict(val_input[i]))
+    val_pred.append(vxm_model.predict(next(val_input)))
 
 warp_model = vxm.networks.Transform(vol_shape, interp_method='nearest')
 
