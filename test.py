@@ -49,7 +49,7 @@ for i in keys_test:
     if len(hf.get(i)) > 1:
         mask_tests.append(i)
 
-vol_shape = (112,112,32)
+vol_shape = fixed_seg.shape
 # unet architecture
 enc_nf = args.enc if args.enc else [16, 32, 32, 32]
 dec_nf = args.dec if args.dec else [32, 32, 32, 32, 32, 16, 16]
@@ -96,7 +96,7 @@ warp_model = vxm.networks.Transform(vol_shape, interp_method='nearest')
 assert (len(mask_tests) == len(val_pred))
 
 #load the test set + normalization
-slices_test_3d_mask = np.empty((len(mask_tests),112,112,32))
+slices_test_3d_mask = np.empty((len(mask_tests),*vol_shape))
 for i, key in enumerate(mask_tests):
     slices_test_3d_mask[i] = np.array(hf.get(key)["mask"])
 
